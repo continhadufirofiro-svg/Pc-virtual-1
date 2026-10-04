@@ -1,0 +1,136 @@
+#!/data/data/com.termux/files/usr/bin/bash
+
+# ============================================================
+# Windows 10 x64 no Android
+# Termux + QEMU
+# ============================================================
+
+set -e
+
+echo "=========================================="
+echo " Windows 10 x64 - Android + QEMU"
+echo "=========================================="
+echo
+
+# ---------- Instalar pacotes ----------
+echo "[1/5] Atualizando Termux..."
+pkg update -y
+pkg upgrade -y
+
+echo "[2/5] Instalando QEMU..."
+pkg install qemu-system-x86-64-headless qemu-utils -y
+
+# ---------- Permissão de armazenamento ----------
+echo "[3/5] Configurando armazenamento..."
+termux-setup-storage
+
+sleep 2
+
+# ---------- Criar diretório ----------
+VM_DIR="$HOME/windows10"
+ISO="/storage/emulated/0/Download/Windows10.iso"
+DISK="$VM_DIR/windows10.qcow2"
+
+mkdir -p "$VM_DIR"
+cd "$VM_DIR"
+
+# ---------- Criar disco ----------
+echo "[4/5] Criando disco virtual de 64 GB..."
+
+if [ ! -f "$DISK" ]; then
+    qemu-img create -f qcow2 "$DISK" 64G
+else
+    echo "Disco virtual já existe."
+fi
+
+# ---------- Criar script de instalação ----------
+cat > "$VM_DIR/install-windows.sh" <<'EOF'
+#!/data/data/com.termux/files/usr/bin/bash
+
+VM_DIR="$HOME/windows10"
+ISO="/storage/emulated/0/Download/Windows10.iso"
+DISK="$VM_DIR/windows10.qcow2"
+
+if [ ! -f "$ISO" ]; then
+    echo
+    echo "ERRO: ISO do Windows 10 não encontrada!"
+    echo
+    echo "Coloque a ISO em:"
+    echo "$ISO"
+    echo
+    exit 1
+fi
+
+echo "Iniciando instalação do Windows 10 x64..."
+
+qemu-system-x86_64 \
+    -machine q35 \
+    -accel tcg,thread=multi \
+    -cpu max \
+    -smp 4 \
+    -m 4096 \
+    -drive file="$DISK",if=virtio,format=qcow2 \
+    -cdrom "$ISO" \
+    -boot order=d \
+    -vga std \
+    -device ich9-intel-hda \
+    -device hda-duplex \
+    -netdev user,id=net0 \
+    -device e1000,netdev=net0
+EOF
+
+chmod +x "$VM_DIR/install-windows.sh"
+
+# ---------- Criar script para iniciar ----------
+cat > "$VM_DIR/start-windows.sh" <<'EOF'
+#!/data/data/com.termux/files/usr/bin/bash
+
+VM_DIR="$HOME/windows10"
+DISK="$VM_DIR/windows10.qcow2"
+
+if [ ! -f "$DISK" ]; then
+    echo "Disco virtual não encontrado."
+    exit 1
+fi
+
+echo "Iniciando Windows 10 x64..."
+
+qemu-system-x86_64 \
+    -machine q35 \
+    -accel tcg,thread=multi \
+    -cpu max \
+    -smp 4 \
+    -m 4096 \
+    -drive file="$DISK",if=virtio,format=qcow2 \
+    -boot order=c \
+    -vga std \
+    -device ich9-intel-hda \
+    -device hda-duplex \
+    -netdev user,id=net0 \
+    -device e1000,netdev=net0
+EOF
+
+chmod +x "$VM_DIR/start-windows.sh"
+
+# ---------- Final ----------
+echo
+echo "[5/5] Tudo pronto!"
+echo
+echo "=========================================="
+echo " CONFIGURAÇÃO"
+echo "=========================================="
+echo "Sistema: Windows 10 x64"
+echo "CPU:     4 núcleos"
+echo "RAM:     4 GB"
+echo "Disco:   64 GB"
+echo "QEMU:    x86_64"
+echo
+echo "Coloque sua ISO em:"
+echo "$ISO"
+echo
+echo "Para instalar:"
+echo "$VM_DIR/install-windows.sh"
+echo
+echo "Depois da instalação:"
+echo "$VM_DIR/start-windows.sh"
+echo "=========================================="
